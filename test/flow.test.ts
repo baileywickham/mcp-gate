@@ -37,6 +37,7 @@ beforeAll(async () => {
     ],
     accessTokenTtlSec: 60,
     refreshTokenTtlSec: 120,
+    serviceTokens: ["service-token-for-tests-0123456789ab"],
   };
   gate.on("request", createApp(config));
 });
@@ -135,4 +136,21 @@ test("login with an expired/forged request is refused", async () => {
 test("healthz and index", async () => {
   expect(await (await fetch(`${base}/healthz`)).text()).toBe("ok");
   expect(await (await fetch(`${base}/`)).text()).toContain("/apple/mcp");
+});
+
+test("a configured service token authenticates without OAuth, a wrong one does not", async () => {
+  const ok = await fetch(`${base}/apple/mcp`, {
+    method: "POST",
+    headers: { authorization: "Bearer service-token-for-tests-0123456789ab", "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
+  expect(ok.status).toBe(200);
+  expect(seen.at(-1)?.auth).toBe("Bearer upstream-secret");  // upstream token swapped in, service token never forwarded
+
+  const bad = await fetch(`${base}/apple/mcp`, {
+    method: "POST",
+    headers: { authorization: "Bearer service-token-for-tests-0123456789XX" },
+    body: "{}",
+  });
+  expect(bad.status).toBe(401);
 });

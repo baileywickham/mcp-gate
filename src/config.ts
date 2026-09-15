@@ -16,6 +16,10 @@ export interface Config {
   upstreams: Upstream[];
   accessTokenTtlSec: number;
   refreshTokenTtlSec: number;
+  /** Long-lived bearer tokens for non-interactive callers (scripts, cloud routines).
+   *  Comma-separated in MCP_GATE_SERVICE_TOKENS; each is accepted in place of an OAuth
+   *  access token and can be revoked on its own by removing it from the secret. */
+  serviceTokens: string[];
 }
 
 function required(name: string): string {
@@ -39,6 +43,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (!/^[a-z0-9-]+$/.test(u.name)) throw new Error(`upstream name "${u.name}" must be [a-z0-9-]`);
     new URL(u.url);
   }
+  const serviceTokens = (env.MCP_GATE_SERVICE_TOKENS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  for (const t of serviceTokens) {
+    if (t.length < 32) throw new Error("each MCP_GATE_SERVICE_TOKENS entry must be at least 32 characters");
+  }
   return {
     issuer,
     port: Number(env.PORT ?? 8080),
@@ -47,5 +58,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     upstreams,
     accessTokenTtlSec: Number(env.MCP_GATE_ACCESS_TTL ?? 3600),
     refreshTokenTtlSec: Number(env.MCP_GATE_REFRESH_TTL ?? 30 * 24 * 3600),
+    serviceTokens,
   };
 }

@@ -26,6 +26,7 @@ Environment:
 | `MCP_GATE_SIGNING_KEY` | HS256 key for all tokens (≥ 32 chars, e.g. `openssl rand -hex 32`) |
 | `MCP_GATE_UPSTREAMS` | JSON: `{"apple": {"url": "http://192.168.0.50:8000/mcp", "token": "…"}}` |
 | `PORT` | default 8080 |
+| `MCP_GATE_SERVICE_TOKENS` | Optional. Comma-separated long-lived bearer tokens (≥ 32 chars each, e.g. `openssl rand -base64 36`) for non-interactive callers — scripts and cloud routines that cannot do the OAuth login. Each is accepted in place of an access token on `/<name>/mcp` and is revoked on its own by removing it here; the OAuth flow is unaffected. |
 | `MCP_GATE_ACCESS_TTL` / `MCP_GATE_REFRESH_TTL` | seconds; default 1 h / 30 d |
 
 ```sh

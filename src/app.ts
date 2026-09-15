@@ -1,12 +1,32 @@
 import express from "express";
 import { mcpAuthRouter, mcpAuthMetadataRouter, createOAuthMetadata, getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
+import { timingSafeEqual } from "node:crypto";
 import type { Config } from "./config.js";
 import { GateProvider } from "./provider.js";
 import { proxyTo } from "./proxy.js";
 
+/** A service token is a shared secret, so compare in constant time and only against equal lengths. */
+function isServiceToken(config: Config, token: string): boolean {
+  const given = Buffer.from(token);
+  return config.serviceTokens.some((t) => {
+    const want = Buffer.from(t);
+    return want.length === given.length && timingSafeEqual(want, given);
+  });
+}
+
 export function createApp(config: Config) {
   const provider = new GateProvider(config);
+  // Verifier used on the proxied routes: a configured service token authenticates
+  // directly; anything else goes through the OAuth provider as before.
+  const verifier = {
+    verifyAccessToken: async (token: string) =>
+      isServiceToken(config, token)
+        ? // The SDK requires an expiry; a service token is checked against the secret on
+          // every request, so hand it a rolling one that is always in the future.
+          { token, clientId: "service", scopes: [], expiresAt: Math.floor(Date.now() / 1000) + 300 }
+        : provider.verifyAccessToken(token),
+  };
   const app = express();
   app.set("trust proxy", true);
   app.disable("x-powered-by");
@@ -37,7 +57,7 @@ export function createApp(config: Config) {
   for (const u of config.upstreams) {
     app.all(
       `/${u.name}/mcp`,
-      requireBearerAuth({ verifier: provider, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl(u.name)) }),
+      requireBearerAuth({ verifier, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl(u.name)) }),
       proxyTo(u),
     );
   }
