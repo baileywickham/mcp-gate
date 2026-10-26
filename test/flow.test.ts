@@ -133,6 +133,13 @@ test("login with an expired/forged request is refused", async () => {
   expect(r.status).toBe(400);
 });
 
+test("compressed request bodies are refused before any parser or route", async () => {
+  for (const [path, enc] of [["/login", "br"], ["/token", "gzip"], ["/register", "deflate"], ["/apple/mcp", "br"]]) {
+    const r = await fetch(`${base}${path}`, { method: "POST", headers: { "content-encoding": enc, "content-type": "application/x-www-form-urlencoded" }, body: "x" });
+    expect(r.status).toBe(415);
+  }
+});
+
 test("healthz and index", async () => {
   expect(await (await fetch(`${base}/healthz`)).text()).toBe("ok");
   expect(await (await fetch(`${base}/`)).text()).toContain("/apple/mcp");

@@ -30,6 +30,13 @@ export function createApp(config: Config) {
   const app = express();
   app.set("trust proxy", true);
   app.disable("x-powered-by");
+  // No client compresses request bodies, and the body parsers would otherwise inflate
+  // gzip/deflate/br for anyone before auth (CVE-2026-111497 was in the brotli decoder).
+  app.use((req, res, next) => {
+    const enc = req.headers["content-encoding"];
+    if (enc && enc.toLowerCase() !== "identity") return void res.status(415).type("text").send("compressed request bodies are not accepted\n");
+    next();
+  });
 
   const resourceUrl = (name: string) => new URL(`/${name}/mcp`, config.issuer);
   const [first, ...others] = config.upstreams;
