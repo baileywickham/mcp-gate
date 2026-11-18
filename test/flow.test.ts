@@ -161,3 +161,19 @@ test("a configured service token authenticates without OAuth, a wrong one does n
   });
   expect(bad.status).toBe(401);
 });
+
+test("a forged X-Forwarded-For does not dodge the login lockout: only the proxy's own entry counts", async () => {
+  const reg = await fetch(`${base}/register`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ client_name: "Claude", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] }),
+  });
+  const client = await reg.json();
+  const challenge = b64url(createHash("sha256").update(b64url(randomBytes(32))).digest());
+  const authz = new URL(`${base}/authorize`);
+  authz.search = form({ response_type: "code", client_id: client.client_id, redirect_uri: client.redirect_uris[0], code_challenge: challenge, code_challenge_method: "S256", state: "s", resource: `${base}/apple/mcp` });
+  const req = /name="req" value="([^"]+)"/.exec(await (await fetch(authz)).text())![1];
+  const login = (forged: string, password: string) =>
+    fetch(`${base}/login`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-forwarded-for": `${forged}, 10.42.0.9` }, body: form({ req, password }), redirect: "manual" });
+  for (let i = 0; i < 5; i++) expect((await login(`203.0.113.${i}`, "nope")).status).toBe(401);
+  expect((await login("203.0.113.200", "correct-horse-battery")).status).toBe(429);
+});

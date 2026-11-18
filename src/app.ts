@@ -28,7 +28,7 @@ export function createApp(config: Config) {
         : provider.verifyAccessToken(token),
   };
   const app = express();
-  app.set("trust proxy", true);
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
   // No client compresses request bodies, and the body parsers would otherwise inflate
   // gzip/deflate/br for anyone before auth (CVE-2026-111497 was in the brotli decoder).
